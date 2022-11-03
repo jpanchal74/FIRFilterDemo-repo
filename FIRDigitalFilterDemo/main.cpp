@@ -668,7 +668,7 @@ void displayOutput(void)
         }
     glEnd();
     char signal_string[100];
-    sprintf(signal_string, "%s Input Signal (Time Domain)\n", GetSignalType(signal_type));
+    snprintf(signal_string, 100, "%s Input Signal (Time Domain)\n", GetSignalType(signal_type));
     drawString(x1_start_4F,(g_Height/2)-y_offset,signal_string);
     //------------------
     
@@ -686,7 +686,7 @@ void displayOutput(void)
         }
     glEnd();
     //char signal_string[100];
-    sprintf(signal_string, "%s Input Signal (Frequency Domain)\n", GetSignalType(signal_type));
+    snprintf(signal_string, 100, "%s Input Signal (Frequency Domain)\n", GetSignalType(signal_type));
     drawString(x2_start_4F,(g_Height/2)-y_offset,signal_string);
     //------------------
     
@@ -793,7 +793,7 @@ void displayInput(void)
         }
     glEnd();
     char signal_string[100];
-    sprintf(signal_string, "%s Input Signal (Time Domain)\n", GetSignalType(signal_type));
+    snprintf(signal_string, 100, "%s Input Signal (Time Domain)\n", GetSignalType(signal_type));
     drawString(x1_start_4F,(g_Height/2)-y_offset,signal_string);
     //------------------
     
@@ -811,7 +811,7 @@ void displayInput(void)
         }
     glEnd();
     //char signal_string[100];
-    sprintf(signal_string, "%s Input Signal (Frequency Domain)\n", GetSignalType(signal_type));
+    snprintf(signal_string, 100, "%s Input Signal (Frequency Domain)\n", GetSignalType(signal_type));
     drawString(x2_start_4F,(g_Height/2)-y_offset,signal_string);
     //------------------
     
@@ -919,7 +919,7 @@ void displayFilter(void)
     glEnd();
     
     char filter_string[100];
-    sprintf(filter_string, "%s Filter Impluse Response [%.2fHz,%.2fHz] (Time Domain)\n", GetFilterType(filter_type), fc1, fc2);
+    snprintf(filter_string, 100, "%s Filter Impluse Response [%.2fHz,%.2fHz] (Time Domain)\n", GetFilterType(filter_type), fc1, fc2);
     drawString(x1_start_4F,(g_Height/2)-y_offset,filter_string);
     //------------------
     
@@ -936,7 +936,7 @@ void displayFilter(void)
         }
     glEnd();
     char window_string[100];
-    sprintf(window_string, "%s Window (Time Domain)\n", GetWindowType(window_type));
+    snprintf(filter_string, 100, "%s Window (Time Domain)\n", GetWindowType(window_type));
     drawString(x2_start_4F,(g_Height/2)-y_offset,window_string);
     //------------------
     
