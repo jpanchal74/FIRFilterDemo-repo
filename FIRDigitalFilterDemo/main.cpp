@@ -26,12 +26,12 @@
 #include <GL/glx.h>
 #endif
 
-#define SCALE1 100
-#define SCALE 250
-#define N 513
+//#define SCALE1 100
+//#define SCALE 250
+#define N 513 //#define N (int)(pow(2.0,(log2((float)subdisplay_length))+1))
 #define L 1
-#define NO 256
-#define LE 43
+//#define NO 256
+//#define LE 43
 
 typedef float real;
 typedef struct
@@ -69,7 +69,7 @@ enum {
 static BOOL g_bButton1Down = FALSE;
 static int g_yClick = 0;
 
-static int g_Width = 1000;                          // Initial window width
+static int g_Width = 1200;                          // Initial window width
 static int g_Height = 800;
 
 int x_offset = ((g_Width/4)/10);
@@ -87,8 +87,11 @@ int y3_start_4F = -(g_Height/4);
 int x4_start_4F = x_offset;
 int y4_start_4F = -(g_Height/4);
 
-int n = 500; // number of samples - should be less than N-1 (513-1=512)
-int no = 200; // filter length
+int subdisplay_length = (g_Width/2) - (2*x_offset);
+
+int n = N-1; // number of samples - should be less than N-1 (513-1=512)
+int no = n-1; // filter length
+
 int m,si;
 
 float a[N], b[N];
@@ -497,7 +500,7 @@ void fft(void)
     }
 }
 
-void GenerateFilterOutput_old(void)
+void GenerateFilterOutput(void)
 {
     int i;
     float ax[N], bx[N], ay[N], by[N];
@@ -687,7 +690,7 @@ void ifft( complex *v, int nt, complex *tmp )
 }
 
 
-void GenerateFilterOutput(void)
+void GenerateFilterOutput_new(void)
 {
     int NT;
     int i, k;
@@ -841,12 +844,17 @@ void displayOutput(void)
     for(c=1;c<=N;c++)
     //for(c=1;c<=no;c++)
     {
-        a[c]=(a[c]/ma)*((g_Height/4)-(y_offset*2));
         ha[c]=(ha[c]/mha)*((g_Height/4)-(y_offset*2));
-        x[c]=(x[c]/mx)*((g_Height/4)-(y_offset*2));
         HA_amp[c]=(HA_amp[c]/mha_amp)*((g_Height/4)-(y_offset*2));
+        
+        x[c]=(x[c]/mx)*((g_Height/4)-(y_offset*2));
         X_amp[c]=(X_amp[c]/mx_amp)*((g_Height/4)-(y_offset*2));
+        
+        //Y_amp[c]=(Y_amp[c]/mx_amp)*((g_Height/4)-(y_offset*2));
         Y_amp[c]=(Y_amp[c]/my_amp)*((g_Height/4)-(y_offset*2));
+        
+        //a[c]=(a[c]/mx)*((g_Height/4)-(y_offset*2));
+        a[c]=(a[c]/ma)*((g_Height/4)-(y_offset*2));
     }
     
     //------------------
