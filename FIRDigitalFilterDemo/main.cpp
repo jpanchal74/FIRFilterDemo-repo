@@ -33,6 +33,13 @@
 #define NO 256
 #define LE 43
 
+typedef float real;
+typedef struct
+{
+    real Re;
+    real Im;
+} complex;
+
 typedef int BOOL;
 #define TRUE 1
 #define FALSE 0
@@ -65,7 +72,7 @@ static int g_yClick = 0;
 static int g_Width = 1000;                          // Initial window width
 static int g_Height = 800;
 
-int x_offset = ((g_Width/2)/10);
+int x_offset = ((g_Width/4)/10);
 int y_offset = ((g_Height/4)/10);
 
 int x1_start_4F = -((g_Width/2) - x_offset);
@@ -80,7 +87,7 @@ int y3_start_4F = -(g_Height/4);
 int x4_start_4F = x_offset;
 int y4_start_4F = -(g_Height/4);
 
-int n = 512; // number of samples - should be less than N-1 (513-1=512)
+int n = 500; // number of samples - should be less than N-1 (513-1=512)
 int no = 200; // filter length
 int m,si;
 
@@ -490,10 +497,10 @@ void fft(void)
     }
 }
 
-void GenerateFilterOutput(void)
+void GenerateFilterOutput_old(void)
 {
     int i;
-    float ax[N], bx[N];
+    float ax[N], bx[N], ay[N], by[N];
 
     for(i=0;i<N;i++)
     {
@@ -501,6 +508,8 @@ void GenerateFilterOutput(void)
         b[i]=0;
         ax[i]=0;
         bx[i]=0;
+        ay[i]=0;
+        by[i]=0;
     }
 
     m=0;
@@ -511,7 +520,6 @@ void GenerateFilterOutput(void)
         i=pow(2,(float)m);
     }
 
-    
     //--------------------------
     // FFT of h(n) in ax and bx
     //--------------------------
@@ -527,9 +535,7 @@ void GenerateFilterOutput(void)
     {
         ax[i]=a[i];
         bx[i]=b[i];
-        HA_amp[i]=0;
         HA_amp[i]=(sqrt(pow(ax[i],2) + pow(bx[i],2)));
-        HA_phase[i]=0;
         HA_phase[i]=-atan(bx[i]/ax[i]);
     }
     //--------------------
@@ -540,7 +546,6 @@ void GenerateFilterOutput(void)
     //------------------------
     for(i=1;i<=n;i++)
     {
-        a[i]=0;
         a[i]=x[i];
         b[i]=0;
     }
@@ -549,9 +554,7 @@ void GenerateFilterOutput(void)
     fft();
     for(i=1;i<=n;i++)
     {
-        X_amp[i]=0;
         X_amp[i]=(sqrt(pow(a[i],2) + pow(b[i],2)));
-        X_phase[i]=0;
         X_phase[i]=-atan(b[i]/a[i]);
     }
     //--------------------
@@ -562,14 +565,12 @@ void GenerateFilterOutput(void)
     //--------------------
     for(i=1;i<=n;i++)
     {
-        b[i] = (a[i]*bx[i]) + (ax[i]*b[i]);
-        a[i] = (a[i]*ax[i]) - (b[i]*bx[i]);
-        b[i] = b[i]/n;
-        a[i] = a[i]/n;
+        by[i] = (a[i]*bx[i]) + (ax[i]*b[i]);
+        ay[i] = (a[i]*ax[i]) - (b[i]*bx[i]);
+        b[i] = by[i]/n;
+        a[i] = ay[i]/n;
         
-        Y_amp[i]=0;
         Y_amp[i]=(sqrt(pow(a[i],2) + pow(b[i],2)));
-        Y_phase[i]=0;
         Y_phase[i]=-atan(b[i]/a[i]);
     }
     //---------------------
@@ -580,6 +581,207 @@ void GenerateFilterOutput(void)
     bitrev();
     si=1;
     fft();
+    //display2();
+    //--------------------
+}
+
+
+
+/*
+   fft(v,N):
+   [0] If N==1 then return.
+   [1] For k = 0 to N/2-1, let ve[k] = v[2*k]
+   [2] Compute fft(ve, N/2);
+   [3] For k = 0 to N/2-1, let vo[k] = v[2*k+1]
+   [4] Compute fft(vo, N/2);
+   [5] For m = 0 to N/2-1, do [6] through [9]
+   [6]   Let w.re = cos(2*PI*m/N)
+   [7]   Let w.im = -sin(2*PI*m/N)
+   [8]   Let v[m] = ve[m] + w*vo[m]
+   [9]   Let v[m+N/2] = ve[m] - w*vo[m]
+ */
+void fft( complex *v, int nt, complex *tmp )
+{
+    if(nt>1)
+    {   /* otherwise, do nothing and return */
+        
+        int k,mt;
+        complex z, w, *vo, *ve;
+        
+        ve = tmp;
+        vo = tmp+nt/2;
+    
+        for(k=0; k<nt/2; k++)
+        {
+            ve[k] = v[2*k];
+            vo[k] = v[2*k+1];
+        }
+        
+        fft( ve, nt/2, v );        /* FFT on even-indexed elements of v[] */
+        fft( vo, nt/2, v );        /* FFT on odd-indexed elements of v[] */
+    
+        for(mt=0; mt<nt/2; mt++)
+        {
+            w.Re = cos(2*M_PI*mt/(double)nt);
+            w.Im = -sin(2*M_PI*mt/(double)nt);
+            z.Re = w.Re*vo[mt].Re - w.Im*vo[mt].Im;    /* Re(w*vo[m]) */
+            z.Im = w.Re*vo[mt].Im + w.Im*vo[mt].Re;    /* Im(w*vo[m]) */
+            v[  mt  ].Re = ve[mt].Re + z.Re;
+            v[  mt ].Im = ve[mt].Im + z.Im;
+            v[mt+nt/2].Re = ve[mt].Re - z.Re;
+            v[mt+nt/2].Im = ve[mt].Im - z.Im;
+        }
+    }
+  
+    return;
+}
+
+
+/*
+   ifft(v,N):
+   [0] If N==1 then return.
+   [1] For k = 0 to N/2-1, let ve[k] = v[2*k]
+   [2] Compute ifft(ve, N/2);
+   [3] For k = 0 to N/2-1, let vo[k] = v[2*k+1]
+   [4] Compute ifft(vo, N/2);
+   [5] For m = 0 to N/2-1, do [6] through [9]
+   [6]   Let w.re = cos(2*PI*m/N)
+   [7]   Let w.im = sin(2*PI*m/N)
+   [8]   Let v[m] = ve[m] + w*vo[m]
+   [9]   Let v[m+N/2] = ve[m] - w*vo[m]
+ */
+void ifft( complex *v, int nt, complex *tmp )
+{
+    if(nt>1)
+    {            /* otherwise, do nothing and return */
+        int k,mt;
+        
+        complex z, w, *vo, *ve;
+        
+        ve = tmp;
+        vo = tmp+nt/2;
+        
+        for(k=0; k<nt/2; k++)
+        {
+            ve[k] = v[2*k];
+            vo[k] = v[2*k+1];
+        }
+    
+        ifft( ve, nt/2, v );        /* FFT on even-indexed elements of v[] */
+        ifft( vo, nt/2, v );        /* FFT on odd-indexed elements of v[] */
+    
+        for(mt=0; mt<nt/2; mt++)
+        {
+            w.Re = cos(2*M_PI*mt/(double)nt);
+            w.Im = sin(2*M_PI*mt/(double)nt);
+            z.Re = w.Re*vo[mt].Re - w.Im*vo[mt].Im;    /* Re(w*vo[m]) */
+            z.Im = w.Re*vo[mt].Im + w.Im*vo[mt].Re;    /* Im(w*vo[m]) */
+            v[  mt  ].Re = ve[mt].Re + z.Re;
+            v[  mt  ].Im = ve[mt].Im + z.Im;
+            v[mt+nt/2].Re = ve[mt].Re - z.Re;
+            v[mt+nt/2].Im = ve[mt].Im - z.Im;
+        }
+    }
+  
+    return;
+}
+
+
+void GenerateFilterOutput(void)
+{
+    int NT;
+    int i, k;
+    complex v[N], scratch[N];
+    complex Xtmp[N], HAtmp[N], Ytmp[N];
+
+    m=0;
+    i=1;
+    while(n>i)
+    {
+        m++;
+        i=pow(2,(float)m);
+    }
+    
+    NT = (1 << m);
+    
+    //--------------------------
+    // FFT of h(n) in ax and bx
+    //--------------------------
+    /* Fill v[] with a function of known FFT: */
+    for(k=0; k<NT; k++)
+    {
+        v[k].Re = ha[k];
+        v[k].Im = 0;
+        
+        scratch[k].Re = 0;
+        scratch[k].Im = 0;
+    }
+    /* FFT of ha[]: */
+    fft( v, NT, scratch );
+    
+    for(k=0;k<NT;k++)
+    {
+        HAtmp[k].Re = v[k].Re;
+        HAtmp[k].Im = v[k].Im;
+        HA_amp[k]=(sqrt(pow(HAtmp[k].Re,2) + pow(HAtmp[k].Im,2)));
+        HA_phase[k]=-atan(HAtmp[k].Im/HAtmp[k].Re);
+    }
+    //--------------------
+    
+    
+    //------------------------
+    // FFT of x(n) in a and b
+    //------------------------
+    /* Fill v[] with a function of known FFT: */
+    for(k=0; k<NT; k++)
+    {
+        v[k].Re = x[k];
+        v[k].Im = 0;
+        
+        scratch[k].Re = 0;
+        scratch[k].Im = 0;
+    }
+    /* FFT of x[]: */
+    fft( v, NT, scratch );
+    
+    for(k=0;k<NT;k++)
+    {
+        Xtmp[k].Re = v[k].Re;
+        Xtmp[k].Im = v[k].Im;
+        X_amp[k]=(sqrt(pow(Xtmp[k].Re,2) + pow(Xtmp[k].Im,2)));
+        X_phase[k]=-atan(Xtmp[k].Im/Xtmp[k].Re);
+    }
+    //--------------------
+    
+    
+    //--------------------
+    // Y = X * H
+    // Y = v2
+    // X = v
+    // H = v1
+    //--------------------
+    for(k=0; k<NT; k++)
+    {
+        v[k].Im = ((Xtmp[k].Re * HAtmp[k].Im) + (HAtmp[k].Re * Xtmp[k].Im))/n;
+        v[k].Re = ((Xtmp[k].Re * HAtmp[k].Re) - (Xtmp[k].Im * HAtmp[k].Im))/n;
+    
+        Y_amp[k]=(sqrt(pow(v[k].Re,2) + pow(v[k].Im,2)));
+        Y_phase[k]=-atan(v[k].Im/v[k].Re);
+        
+        scratch[k].Re = 0;
+        scratch[k].Im = 0;
+    }
+    //---------------------
+    
+    //--------------------
+    // Y(n) to y(t)
+    //--------------------
+    ifft( v, NT, scratch );
+    for(k=0; k<NT; k++)
+    {
+        a[k] = v[k].Re;
+        b[k] = v[k].Im;
+    }
     //display2();
     //--------------------
 }
@@ -603,7 +805,7 @@ void drawString(int x, int y, char *string)
 
 void displayOutput(void)
 {
-    float ma,mha,mw,mb,mx,mha_amp,mha_phase,mx_amp,my_amp;
+    float ma,mha,mx,mha_amp,mx_amp,my_amp;
     int c,i;
     
     int max_points_4F = fmin(n, (g_Width/2)-(2*x_offset));
@@ -618,38 +820,31 @@ void displayOutput(void)
     glLoadIdentity();
 
     ma=0;
-    mw=0;
     mha=0;
-    mb=0;
     mx=0;
     mha_amp=0;
-    mha_phase=0;
     mx_amp=0;
     my_amp=0;
 
     // Find Maximum -ve or +ve value of each array
-    for(c=1;c<=no;c++)
+    for(c=1;c<=N;c++)
+    //for(c=1;c<=no;c++)
     {
         if(fabs(a[c])>ma) ma=fabs(a[c]);
-        if(fabs(b[c])>mb) mb=fabs(b[c]);
-        if(fabs(w[c])>mw) mw=fabs(w[c]);
         if(fabs(ha[c])>mha) mha=fabs(ha[c]);
         if(fabs(x[c])>mx) mx=fabs(x[c]);
         if(fabs(HA_amp[c])>mha_amp) mha_amp=fabs(HA_amp[c]);
-        if(fabs(HA_phase[c])>mha_phase) mha_phase=fabs(HA_phase[c]);
         if(fabs(X_amp[c])>mx_amp) mx_amp=fabs(X_amp[c]);
         if(fabs(Y_amp[c])>my_amp) my_amp=fabs(Y_amp[c]);
     }
 
-    for(c=1;c<=no;c++)
+    for(c=1;c<=N;c++)
+    //for(c=1;c<=no;c++)
     {
         a[c]=(a[c]/ma)*((g_Height/4)-(y_offset*2));
-        b[c]=(b[c]/mb)*((g_Height/4)-(y_offset*2));
-        w[c]=(w[c]/mw)*((g_Height/4)-(y_offset*2));
         ha[c]=(ha[c]/mha)*((g_Height/4)-(y_offset*2));
         x[c]=(x[c]/mx)*((g_Height/4)-(y_offset*2));
         HA_amp[c]=(HA_amp[c]/mha_amp)*((g_Height/4)-(y_offset*2));
-        HA_phase[c]=(HA_phase[c]/mha_phase)*((g_Height/4)-(y_offset*2));
         X_amp[c]=(X_amp[c]/mx_amp)*((g_Height/4)-(y_offset*2));
         Y_amp[c]=(Y_amp[c]/my_amp)*((g_Height/4)-(y_offset*2));
     }
@@ -668,7 +863,7 @@ void displayOutput(void)
         }
     glEnd();
     char signal_string[100];
-    snprintf(signal_string, 100, "%s Input Signal (Time Domain)\n", GetSignalType(signal_type));
+    snprintf(signal_string, 100, "%s Input (Time)\n", GetSignalType(signal_type));
     drawString(x1_start_4F,(g_Height/2)-y_offset,signal_string);
     //------------------
     
@@ -682,12 +877,14 @@ void displayOutput(void)
     glVertex2d(x2_start_4F,y2_start_4F);
         for(i=0,c=1;c<=max_points_4F;i=i+1,c+=L)
         {
-            glVertex2d(x2_start_4F+i, y2_start_4F+X_amp[c]);
+            glVertex2d(x2_start_4F+i, y2_start_4F+ha[c]);
         }
     glEnd();
+    
     //char signal_string[100];
-    snprintf(signal_string, 100, "%s Input Signal (Frequency Domain)\n", GetSignalType(signal_type));
+    snprintf(signal_string, 100, "%s [%.2fHz,%.2fHz] & %s (Time)", GetFilterType(filter_type), fc1, fc2, GetWindowType(window_type));
     drawString(x2_start_4F,(g_Height/2)-y_offset,signal_string);
+    
     //------------------
     
     //------------------
@@ -702,7 +899,7 @@ void displayOutput(void)
             glVertex2d(x3_start_4F+i, y3_start_4F+a[c]);
         }
     glEnd();
-    drawString(x3_start_4F,-y_offset,"Output (Time Domain)");
+    drawString(x3_start_4F,-y_offset,"Output (Time)");
     //------------------
     
     //------------------
@@ -717,7 +914,7 @@ void displayOutput(void)
             glVertex2d(x4_start_4F+i, y4_start_4F+Y_amp[c]);
         }
     glEnd();
-    drawString(x4_start_4F,-y_offset,"Output (Frequency Domain)");
+    drawString(x4_start_4F,-y_offset,"Output (Frequency)");
     //------------------
     
     //outtextxy(10,35," Input to Filter ");
@@ -728,7 +925,7 @@ void displayOutput(void)
 
 void displayInput(void)
 {
-    float ma,mha,mw,mb,mx,mha_amp,mha_phase,mx_amp,my_amp;
+    float mha,mx,mha_amp,mx_amp;
     int c,i;
     
     int max_points_4F = fmin(n, (g_Width/2)-(2*x_offset));
@@ -742,41 +939,28 @@ void displayInput(void)
     //Start with identity matrix
     glLoadIdentity();
 
-    ma=0;
-    mw=0;
     mha=0;
-    mb=0;
     mx=0;
     mha_amp=0;
-    mha_phase=0;
     mx_amp=0;
-    my_amp=0;
 
     // Find Maximum -ve or +ve value of each array
-    for(c=1;c<=no;c++)
+    for(c=1;c<=N;c++)
+    //for(c=1;c<=no;c++)
     {
-        if(fabs(a[c])>ma) ma=fabs(a[c]);
-        if(fabs(b[c])>mb) mb=fabs(b[c]);
-        if(fabs(w[c])>mw) mw=fabs(w[c]);
         if(fabs(ha[c])>mha) mha=fabs(ha[c]);
         if(fabs(x[c])>mx) mx=fabs(x[c]);
         if(fabs(HA_amp[c])>mha_amp) mha_amp=fabs(HA_amp[c]);
-        if(fabs(HA_phase[c])>mha_phase) mha_phase=fabs(HA_phase[c]);
         if(fabs(X_amp[c])>mx_amp) mx_amp=fabs(X_amp[c]);
-        if(fabs(Y_amp[c])>my_amp) my_amp=fabs(Y_amp[c]);
     }
 
-    for(c=1;c<=no;c++)
+    for(c=1;c<=N;c++)
+    //for(c=1;c<=no;c++)
     {
-        a[c]=(a[c]/ma)*((g_Height/4)-(y_offset*2));
-        b[c]=(b[c]/mb)*((g_Height/4)-(y_offset*2));
-        w[c]=(w[c]/mw)*((g_Height/4)-(y_offset*2));
         ha[c]=(ha[c]/mha)*((g_Height/4)-(y_offset*2));
         x[c]=(x[c]/mx)*((g_Height/4)-(y_offset*2));
         HA_amp[c]=(HA_amp[c]/mha_amp)*((g_Height/4)-(y_offset*2));
-        HA_phase[c]=(HA_phase[c]/mha_phase)*((g_Height/4)-(y_offset*2));
         X_amp[c]=(X_amp[c]/mx_amp)*((g_Height/4)-(y_offset*2));
-        Y_amp[c]=(Y_amp[c]/my_amp)*((g_Height/4)-(y_offset*2));
     }
     
     //------------------
@@ -793,10 +977,9 @@ void displayInput(void)
         }
     glEnd();
     char signal_string[100];
-    snprintf(signal_string, 100, "%s Input Signal (Time Domain)\n", GetSignalType(signal_type));
+    snprintf(signal_string, 100, "%s Input (Time)\n", GetSignalType(signal_type));
     drawString(x1_start_4F,(g_Height/2)-y_offset,signal_string);
     //------------------
-    
     
     //------------------
     //Figure 2
@@ -810,8 +993,9 @@ void displayInput(void)
             glVertex2d(x2_start_4F+i, y2_start_4F+X_amp[c]);
         }
     glEnd();
+    
     //char signal_string[100];
-    snprintf(signal_string, 100, "%s Input Signal (Frequency Domain)\n", GetSignalType(signal_type));
+    snprintf(signal_string, 100, "%s Input (Frequency)", GetSignalType(signal_type));
     drawString(x2_start_4F,(g_Height/2)-y_offset,signal_string);
     //------------------
     
@@ -819,15 +1003,19 @@ void displayInput(void)
     //Figure 3
     //------------------
     glColor3f(1.0,1.0,0.0);
+    glLineWidth(2);
     glRasterPos2f(x3_start_4F,y3_start_4F);
     glBegin(GL_LINE_STRIP);
         glVertex2d(x3_start_4F,y3_start_4F);
         for(i=0,c=1;c<=max_points_4F;i=i+1,c+=L)
         {
-            glVertex2d(x3_start_4F+i, y3_start_4F+a[c]);
+            glVertex2d(x3_start_4F+i, y3_start_4F+ha[c]);
         }
     glEnd();
-    drawString(x3_start_4F,-y_offset,"Output (Time Domain)");
+    
+    //char signal_string[100];
+    snprintf(signal_string, 100, "%s [%.2fHz,%.2fHz] & %s (Time)", GetFilterType(filter_type), fc1, fc2, GetWindowType(window_type));
+    drawString(x3_start_4F,-y_offset,signal_string);
     //------------------
     
     //------------------
@@ -839,21 +1027,21 @@ void displayInput(void)
         glVertex2d(x4_start_4F,y4_start_4F);
         for(i=0,c=1;c<=max_points_4F;i=i+1,c+=L)
         {
-            glVertex2d(x4_start_4F+i, y4_start_4F+Y_amp[c]);
+            glVertex2d(x4_start_4F+i, y4_start_4F+HA_amp[c]);
         }
     glEnd();
-    drawString(x4_start_4F,-y_offset,"Output (Frequency Domain)");
-    //------------------
     
-    //outtextxy(10,35," Input to Filter ");
-    //outtextxy(10,10+ym/2," Filter Output ");
+    //char signal_string[100];
+    snprintf(signal_string, 100, "Magnitude vs. Frequency [%s, %s]", GetFilterType(filter_type), GetWindowType(window_type));
+    drawString(x4_start_4F,-y_offset,signal_string);
+    //------------------
     
     glFlush();
 }
 
 void displayFilter(void)
 {
-    float ma,mha,mw,mb,mx,mha_amp,mha_phase,mx_amp,my_amp;
+    float mh,mw,mha,mha_amp,mha_phase;
     int c,i;
     
     int max_points_4F = fmin(n, (g_Width/2)-(2*x_offset));
@@ -867,41 +1055,31 @@ void displayFilter(void)
     //Start with identity matrix
     glLoadIdentity();
 
-    ma=0;
-    mw=0;
-    mha=0;
-    mb=0;
-    mx=0;
-    mha_amp=0;
-    mha_phase=0;
-    mx_amp=0;
-    my_amp=0;
+    mh = 0;
+    mw = 0;
+    //mha = 0;
+    mha_amp = 0;
+    mha_phase = 0;
 
     // Find Maximum -ve or +ve value of each array
-    for(c=1;c<=no;c++)
+    for(c=1;c<=N;c++)
+    //for(c=1;c<=no;c++)
     {
-        if(fabs(a[c])>ma) ma=fabs(a[c]);
-        if(fabs(b[c])>mb) mb=fabs(b[c]);
+        if(fabs(h[c])>mh) mh=fabs(h[c]);
         if(fabs(w[c])>mw) mw=fabs(w[c]);
-        if(fabs(ha[c])>mha) mha=fabs(ha[c]);
-        if(fabs(x[c])>mx) mx=fabs(x[c]);
+        //if(fabs(ha[c])>mha) mha=fabs(ha[c]);
         if(fabs(HA_amp[c])>mha_amp) mha_amp=fabs(HA_amp[c]);
         if(fabs(HA_phase[c])>mha_phase) mha_phase=fabs(HA_phase[c]);
-        if(fabs(X_amp[c])>mx_amp) mx_amp=fabs(X_amp[c]);
-        if(fabs(Y_amp[c])>my_amp) my_amp=fabs(Y_amp[c]);
     }
 
-    for(c=1;c<=no;c++)
+    for(c=1;c<=N;c++)
+    //for(c=1;c<=no;c++)
     {
-        a[c]=(a[c]/ma)*((g_Height/4)-(y_offset*2));
-        b[c]=(b[c]/mb)*((g_Height/4)-(y_offset*2));
+        h[c]=(h[c]/mh)*((g_Height/4)-(y_offset*2));
         w[c]=(w[c]/mw)*((g_Height/4)-(y_offset*2));
-        ha[c]=(ha[c]/mha)*((g_Height/4)-(y_offset*2));
-        x[c]=(x[c]/mx)*((g_Height/4)-(y_offset*2));
+        //ha[c]=(ha[c]/mha)*((g_Height/4)-(y_offset*2));
         HA_amp[c]=(HA_amp[c]/mha_amp)*((g_Height/4)-(y_offset*2));
         HA_phase[c]=(HA_phase[c]/mha_phase)*((g_Height/4)-(y_offset*2));
-        X_amp[c]=(X_amp[c]/mx_amp)*((g_Height/4)-(y_offset*2));
-        Y_amp[c]=(Y_amp[c]/my_amp)*((g_Height/4)-(y_offset*2));
     }
     
     //------------------
@@ -914,12 +1092,12 @@ void displayFilter(void)
         glVertex2d(x1_start_4F,y1_start_4F);
         for(i=0,c=1;c<=max_points_4F;i=i+1,c+=L)
         {
-            glVertex2d(x1_start_4F+i, y1_start_4F+ha[c]);
+            glVertex2d(x1_start_4F+i, y1_start_4F+h[c]);
         }
     glEnd();
     
     char filter_string[100];
-    snprintf(filter_string, 100, "%s Filter Impluse Response [%.2fHz,%.2fHz] (Time Domain)\n", GetFilterType(filter_type), fc1, fc2);
+    snprintf(filter_string, 100, "%s Filter [%.2fHz, %.2fHz] (Time)", GetFilterType(filter_type), fc1, fc2);
     drawString(x1_start_4F,(g_Height/2)-y_offset,filter_string);
     //------------------
     
@@ -935,9 +1113,9 @@ void displayFilter(void)
             glVertex2d(x2_start_4F+i, y2_start_4F+w[c]);
         }
     glEnd();
-    char window_string[100];
-    snprintf(filter_string, 100, "%s Window (Time Domain)\n", GetWindowType(window_type));
-    drawString(x2_start_4F,(g_Height/2)-y_offset,window_string);
+    //char filter_string[100];
+    snprintf(filter_string, 100, "%s Window (Time)", GetWindowType(window_type));
+    drawString(x2_start_4F,(g_Height/2)-y_offset,filter_string);
     //------------------
     
     //drawString(x1_start_4F,(g_Height/2)-y_offset,"Filter Impluse Response (Time Domain)");
@@ -954,7 +1132,9 @@ void displayFilter(void)
             glVertex2d(x3_start_4F+i, y3_start_4F+HA_amp[c]);
         }
     glEnd();
-    drawString(x3_start_4F,-y_offset,"Magnitude vs. Frequency");
+    //char filter_string[100];
+    snprintf(filter_string, 100, "Magnitude vs. Frequency [%s, %s]", GetFilterType(filter_type), GetWindowType(window_type));
+    drawString(x3_start_4F,-y_offset,filter_string);
     //------------------
     
     //------------------
@@ -969,7 +1149,9 @@ void displayFilter(void)
             glVertex2d(x4_start_4F+i, y4_start_4F+HA_phase[c]);
         }
     glEnd();
-    drawString(x4_start_4F,-y_offset,"Phase vs. Frequency");
+    //char filter_string[100];
+    snprintf(filter_string, 100, "Phase vs. Frequency [%s, %s]", GetFilterType(filter_type), GetWindowType(window_type));
+    drawString(x4_start_4F,-y_offset,filter_string);
     //------------------
     
     //outtextxy(10,35," Input to Filter ");
@@ -1094,6 +1276,7 @@ void SelectFromMenu(int idCommand)
             glutDisplayFunc(displayOutput);
             break;
         case MENU_EXIT:
+            glutDestroyWindow(glutGetWindow());
             exit (0);
             break;
     }
@@ -1178,6 +1361,7 @@ void Keyboard(unsigned char key, int x, int y)
             SelectFromMenu(MENU_OUTPUT);
             break;
         case 27: // ESCAPE key
+            glutDestroyWindow(glutGetWindow());
             exit(0);
             break;
       }
@@ -1308,5 +1492,6 @@ int main(int argc, char **argv)
     // Turn the flow of control over to GLUT
     glutMainLoop ();
     
+    glutDestroyWindow(glutGetWindow());
     exit(EXIT_SUCCESS);
 }
